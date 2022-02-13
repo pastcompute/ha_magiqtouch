@@ -22,7 +22,7 @@ from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTClient
 # from pycognito.aws_srp import AWSSRP
 # import asyncio_mqtt
 
-from .structures import RemoteStatus, RemoteAccessRequest
+from structures import RemoteStatus, RemoteAccessRequest
 
 cognitoIdentityPoolID = "ap-southeast-2:0ed20c23-4af8-4408-86fc-b78689a5c7a7"
 
@@ -86,6 +86,7 @@ class MagiQtouch_Driver:
         self._mqtt_client_id = None
 
         self.current_state: RemoteStatus = RemoteStatus()
+        self.current_state_just_updated: RemoteStatus = RemoteStatus()
         self._update_listener = None
         self._update_listener_override = None
 
@@ -100,6 +101,8 @@ class MagiQtouch_Driver:
                 client_id=cognito_userpool_client_id,
                 user_pool_region=AWS_REGION,
                 username=self._user,
+                #access_key='AKIAIOSFODNN7EXAMPLE',
+                #secret_key='wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
             )
 
             await cog.authenticate(self._password)
@@ -289,6 +292,7 @@ class MagiQtouch_Driver:
                 data = json.loads(message.payload)
                 new_state = RemoteStatus()
                 new_state.__update__(data)
+                self.current_state_just_updated = new_state
                 if self._update_listener_override:
                     _LOGGER.warn("State watching: %s" % new_state)
                     self._update_listener_override()
@@ -444,6 +448,8 @@ def main():
     user = args.email
     password = args.password
 
+    logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
+
     m = MagiQtouch_Driver(user=user, password=password)
 
     loop = asyncio.get_event_loop()
@@ -457,6 +463,14 @@ def main():
         time.sleep(1)
     print(m.current_state)
 
+    def handler1():
+        s = m.current_state_just_updated
+        _LOGGER.debug("handler1 on=%d,fanMode=%d,evapRunning=%d, tempC=%d, setTempC=%d,setFanSpeed=%d " % (s.SystemOn, 1-s.FanOrTempControl, s.EvapCRunning, s.InternalTemp, s.CTemp, s.CFanSpeed))
+
+    m.set_listener(handler1)
+
+    while True:
+        time.sleep(1)
 
 if __name__ == "__main__":
     main()
